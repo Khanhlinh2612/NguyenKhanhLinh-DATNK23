@@ -1,5 +1,5 @@
-
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import './App.css';
 
 const ADMIN_EMAIL = 'admin@klinhbeauty.com';
@@ -187,6 +187,9 @@ const paymentLabels = {
 };
 
 export default function App() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
   const [users, setUsers] = useState(() => initializeUsers());
   const [cart, setCart] = useState(() => readStorage('klinh-cart', []));
   const [orders, setOrders] = useState(() => readStorage('klinh-orders', []));
@@ -196,6 +199,28 @@ export default function App() {
   const [cat, setCat] = useState('Tất cả');
   const [page, setPage] = useState('home');
   const [item, setItem] = useState(null);
+
+  const navigateToPage = (nextPage, product = null) => {
+    const paths = {
+      home: '/',
+      favorites: '/favorites',
+      cart: '/cart',
+      login: '/login',
+      account: '/account',
+      orders: '/orders',
+      checkout: '/checkout',
+      admin: '/admin'
+    };
+
+    if (nextPage === 'detail' && product) {
+      setItem(product);
+      navigate(`/products/${product.id}`);
+    } else {
+      navigate(paths[nextPage] || '/');
+    }
+
+    window.scrollTo(0, 0);
+  };
 
   const [user, setUser] = useState(getCurrentUser);
 
@@ -302,7 +327,7 @@ export default function App() {
   const toggleFavorite = (product) => {
     if (!user) {
       alert('Vui lòng đăng nhập để sử dụng danh sách yêu thích!');
-      setPage('login');
+      navigateToPage('login');
       setAuthMode('login');
       return;
     }
@@ -334,17 +359,14 @@ export default function App() {
   );
 
   const openDetail = (product) => {
-    setItem(product);
     setRating(5);
     setReviewContent('');
-    setPage('detail');
-    window.scrollTo(0, 0);
+    navigateToPage('detail', product);
   };
 
   const goHome = () => {
-    setPage('home');
     setItem(null);
-    window.scrollTo(0, 0);
+    navigateToPage('home');
   };
 
   // Đăng nhập bằng email và mật khẩu.
@@ -380,7 +402,7 @@ export default function App() {
     setEmail('');
     setPassword('');
 
-    setPage(
+    navigateToPage(
       foundUser.role === 'ADMIN' ? 'admin' : 'account'
     );
   };
@@ -446,17 +468,85 @@ export default function App() {
     setConfirmPassword('');
 
     alert('Đăng ký tài khoản thành công!');
-    setPage('account');
+    navigateToPage('account');
   };
 
+  // Đăng xuất.
   const logout = () => {
     setUser(null);
     setFavorites([]);
     localStorage.removeItem('klinh-user');
-    setPage('home');
+    navigateToPage('home');
   };
 
   const isAdmin = user?.role === 'ADMIN';
+
+  useEffect(() => {
+    const path = location.pathname;
+
+    const productMatch = path.match(/^\/products\/(\d+)$/);
+
+    if (productMatch) {
+      const product = products.find(
+        (p) => p.id === Number(productMatch[1])
+      );
+
+      if (product) {
+        setItem(product);
+        setPage('detail');
+        window.scrollTo(0, 0);
+      } else {
+        setItem(null);
+        setPage('home');
+        navigate('/', { replace: true });
+      }
+
+      return;
+    }
+
+    const pageRoutes = {
+      '/': 'home',
+      '/products': 'home',
+      '/favorites': 'favorites',
+      '/cart': 'cart',
+      '/login': 'login',
+      '/account': 'account',
+      '/orders': 'orders',
+      '/checkout': 'checkout',
+      '/admin': 'admin'
+    };
+
+    const nextPage = pageRoutes[path];
+
+    if (nextPage) {
+      setPage(nextPage);
+
+      if (nextPage !== 'detail') {
+        setItem(null);
+      }
+
+      if (
+        (nextPage === 'account' || nextPage === 'orders') &&
+        (!user || isAdmin)
+      ) {
+        navigate(user && isAdmin ? '/admin' : '/login', {
+          replace: true
+        });
+      }
+
+      if (nextPage === 'checkout' && (!user || isAdmin)) {
+        navigate(user && isAdmin ? '/' : '/login', {
+          replace: true
+        });
+      }
+
+      window.scrollTo(0, 0);
+    } else {
+      setPage('home');
+      setItem(null);
+      navigate('/', { replace: true });
+    }
+  }, [location.pathname, user, isAdmin, navigate]);
 
   const myOrders = orders.filter(
     (order) => order.customerEmail === user?.email
@@ -503,7 +593,7 @@ export default function App() {
 
     if (!user) {
       alert('Vui lòng đăng nhập để đánh giá sản phẩm!');
-      setPage('login');
+      navigateToPage('login');
       return;
     }
 
@@ -545,7 +635,7 @@ export default function App() {
   const checkout = () => {
     if (!user) {
       alert('Vui lòng đăng nhập trước khi đặt hàng!');
-      setPage('login');
+      navigateToPage('login');
       return;
     }
 
@@ -586,7 +676,7 @@ export default function App() {
     );
 
     saveCart([]);
-    setPage('orders');
+    navigateToPage('orders');
   };
 
   // Khách hàng chỉ được hủy đơn đang chờ xử lý.
@@ -755,11 +845,11 @@ export default function App() {
 
           {!isAdmin && (
             <>
-              <button onClick={() => setPage('favorites')}>
+              <button onClick={() => navigateToPage('favorites')}>
                 Yêu thích ({favorites.length})
               </button>
 
-              <button onClick={() => setPage('cart')}>
+              <button onClick={() => navigateToPage('cart')}>
                 Giỏ hàng ({cartCount})
               </button>
             </>
@@ -768,16 +858,16 @@ export default function App() {
           {user ? (
             <>
               {isAdmin ? (
-                <button onClick={() => setPage('admin')}>
+                <button onClick={() => navigateToPage('admin')}>
                   Quản trị
                 </button>
               ) : (
                 <>
-                  <button onClick={() => setPage('account')}>
+                  <button onClick={() => navigateToPage('account')}>
                     Tài khoản
                   </button>
 
-                  <button onClick={() => setPage('orders')}>
+                  <button onClick={() => navigateToPage('orders')}>
                     Đơn hàng
                   </button>
                 </>
@@ -789,7 +879,7 @@ export default function App() {
             <button
               onClick={() => {
                 setAuthMode('login');
-                setPage('login');
+                navigateToPage('login');
               }}
             >
               Đăng nhập
@@ -1027,7 +1117,7 @@ export default function App() {
                       className="primary"
                       onClick={() => {
                         setAuthMode('login');
-                        setPage('login');
+                        navigateToPage('login');
                       }}
                     >
                       Đăng nhập
@@ -1100,7 +1190,7 @@ export default function App() {
                 <p>Vui lòng đăng nhập để xem danh sách yêu thích.</p>
                 <button
                   className="primary"
-                  onClick={() => setPage('login')}
+                  onClick={() => navigateToPage('login')}
                 >
                   Đăng nhập
                 </button>
@@ -1169,7 +1259,7 @@ export default function App() {
 
                   <button
                     className="primary"
-                    onClick={() => setPage('checkout')}
+                    onClick={() => navigateToPage('checkout')}
                   >
                     Tiến hành đặt hàng
                   </button>
@@ -1281,14 +1371,14 @@ export default function App() {
 
             <button
               className="primary"
-              onClick={() => setPage('favorites')}
+              onClick={() => navigateToPage('favorites')}
             >
               Xem sản phẩm yêu thích
             </button>
 
             <button
               className="primary"
-              onClick={() => setPage('orders')}
+              onClick={() => navigateToPage('orders')}
             >
               Xem đơn hàng của tôi
             </button>
