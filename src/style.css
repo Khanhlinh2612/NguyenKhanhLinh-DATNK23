@@ -2,7 +2,9 @@
 /* =========================================
    KLINH BEAUTY - GLOBAL
 ========================================= */
-
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 * {
   box-sizing: border-box;
 }
